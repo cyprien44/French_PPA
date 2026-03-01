@@ -419,7 +419,7 @@ def page_accueil(db_dir: str) -> None:
 
     with col_b:
         st.markdown("### Scénarios disponibles")
-        xlsx = _HERE / "scenario_defaults.xlsx"
+        xlsx = _DB_DIR / "scenario_defaults.xlsx"
         sd = load_scenario_defaults(str(xlsx))
         if sd is not None:
             scen_cols = [c for c in sd.columns
@@ -1016,11 +1016,11 @@ def page_data_explorer(db_dir: str) -> None:
 def page_scenario(db_dir: str) -> None:
     st.markdown("# ⚙️ Configuration du Scénario")
 
-    xlsx_path = _HERE / "scenario_defaults.xlsx"
+    xlsx_path = _DB_DIR / "scenario_defaults.xlsx"
     sd = load_scenario_defaults(str(xlsx_path))
 
     if sd is None:
-        st.error(f"scenario_defaults.xlsx non trouvé dans `{_HERE}`")
+        st.error(f"scenario_defaults.xlsx non trouvé dans `{_DB_DIR}`")
         st.code("Chemin attendu : " + str(xlsx_path))
         return
 
