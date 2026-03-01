@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.env
+venv/
+
+# Fichiers de données lourds
+database/*.db
+gisdata/*.gpkg
+gisdata/*.csv
+gisdata/*.html
+
+# Documentation obsolète
+documentation/grid_kepco.csv
+documentation/README_French_PPA.docx
+documentation/*.xlsb
+
+# scenario_defaults_v3.xlsx (doublon)
+database/scenario_defaults_v3.xlsx
+
+# VS Code / OS
+.vscode/
+.DS_Store
+Thumbs.db
+.ipynb_checkpoints/
