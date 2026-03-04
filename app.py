@@ -484,7 +484,7 @@ def page_data_explorer(db_dir: str) -> None:
             return
 
         c1, c2, c3, c4 = st.columns(4)
-        with c1: st.metric("CO2 réseau 2024", f"{df.loc[2024,'co2_intensity_g_kwh']:.0f} gCO2/kWh", "vs Corée ~450")
+        with c1: st.metric("CO2 réseau 2024", f"{df.loc[2024,'co2_intensity_g_kwh']:.0f} gCO2/kWh", "→ 15 gCO2/kWh en 2050")
         with c2: st.metric("ENR 2024", f"{df.loc[2024,'ren_share']*100:.0f}%", "→ 80% en 2050")
         with c3: st.metric("CAPEX PV 2024", f"{df.loc[2024,'solar_capex']/1000:.0f} k€/MW", "→ 300 k€/MW en 2050")
         with c4: st.metric("EPEX moyen 2024", f"{df.loc[2024,'epex_spot_mean']:.0f} €/MWh", "vs 96 €/MWh 2023")
