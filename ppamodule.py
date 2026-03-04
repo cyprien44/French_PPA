@@ -443,8 +443,16 @@ def run_site_screening(params: dict, load_col: str = "siderurgie",
                          pd.Series(0, index=metrics_df.index)).fillna(0).clip(0, 1))
         ).round(4)
 
+    # S'assurer que les colonnes attendues par screen_sites() existent
+    for col, default in [("correlation_load", 0.0),
+                          ("cannibalization_risk", 0.0),
+                          ("cf_mean", 0.15)]:
+        if col not in metrics_df.columns:
+            metrics_df[col] = default
+
     screened = screen_sites(metrics_df, min_cf=0.08, min_capture_rate=0.75,
                              max_cannibalization=0.40, top_n=20)
+    
     print(f"[SCREENING] {len(screened)} sites retenus")
     return screened
 
