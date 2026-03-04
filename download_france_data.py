@@ -675,6 +675,27 @@ def compute_capture_rates(epex_year: int = METEO_YEAR,
     results   = []
     wind_type_map = {w[0]: w[3] for w in WIND_SITES}
 
+    # APRÈS
+    # Charger load_patterns une seule fois (siderurgie = charge sidérurgie type ArcelorMittal)
+    load_db = DB_DIR / "load_patterns.db"
+    load_df = None
+    if load_db.exists():
+        conn_l = sqlite3.connect(str(load_db))
+        try:
+            load_df = pd.read_sql("SELECT * FROM load_patterns", conn_l,
+                                   index_col="datetime", parse_dates=["datetime"])
+            conn_l.close()
+            # ← AJOUTER CES LIGNES : réindexer le profil de charge sur l'année EPEX
+            # La forme horaire (H24 × 365) est identique quelle que soit l'année
+            if load_df is not None and not load_df.empty:
+                dr_epex = pd.date_range(f"{epex_year}-01-01",
+                                         f"{epex_year}-12-31 23:00", freq="h")
+                load_arr = load_df.values[:len(dr_epex)]  # tronquer si besoin
+                load_df  = pd.DataFrame(load_arr, index=dr_epex,
+                                         columns=load_df.columns)
+        except Exception:
+            conn_l.close()
+
     for db_path, table, tech_default in [
         (DB_DIR / "solar_patterns.db", "solar_patterns", "solar"),
         (DB_DIR / "wind_patterns.db",  "wind_patterns",  "wind"),
@@ -695,18 +716,37 @@ def compute_capture_rates(epex_year: int = METEO_YEAR,
             total_vol = cf.sum()
             if total_vol <= 0 or spot_mean <= 0:
                 continue
-            cr = (cf * epex).sum() / total_vol / spot_mean
+            cr   = (cf * epex).sum() / total_vol / spot_mean
             tech = wind_type_map.get(col, tech_default)
+
+            # Corrélation avec la charge client (Pearson)
+            corr_load = None
+            if load_df is not None and "siderurgie" in load_df.columns:
+                common = cf.index.intersection(load_df.index)
+                if len(common) >= 8000:
+                    q_l = cf.reindex(common).fillna(0).values
+                    l_l = load_df["siderurgie"].reindex(common).fillna(0).values
+                    if q_l.std() > 0 and l_l.std() > 0:
+                        corr_load = round(float(np.corrcoef(q_l, l_l)[0, 1]), 4)
+
+            # Risque de cannibalisation : % d'heures où le site produit avec spot < 0
+            q_vals   = cf.values
+            s_vals   = epex.reindex(cf.index).fillna(0).values
+            neg_hours = int(((s_vals < 0) & (q_vals > 0.01)).sum())
+            canni     = round(float(np.clip(neg_hours / max(len(q_vals), 1) * 10, 0, 1)), 4)
+
+            print(f"  {col:<25} CR={cr:.4f}  corr={corr_load or 'N/A':<7}  canni={canni:.3f}  ({tech})")
+
             results.append({
-                "site":                    col,
-                "technology":              tech,
-                "capture_rate_systeme":    round(float(cr), 4),
-                "capture_price_eur_mwh":   round(float(cr * spot_mean), 2),
-                "cf_mean":                 round(float(cf.mean()), 4),
-                "epex_year":               epex_year,
+                "site":                  col,
+                "technology":            tech,
+                "capture_rate_systeme":  round(float(cr), 4),
+                "capture_price_eur_mwh": round(float(cr * spot_mean), 2),
+                "cf_mean":               round(float(cf.mean()), 4),
+                "epex_year":             epex_year,
+                "correlation_load":      corr_load,
+                "cannibalization_risk":  canni,
             })
-            print(f"  {col:<25} CR={cr:.4f}  "
-                  f"→ {cr * spot_mean:.1f} €/MWh ({tech})")
 
     if not results:
         print("[WARN] Aucun profil dispo pour les capture rates")
