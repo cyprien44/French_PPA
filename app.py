@@ -917,6 +917,7 @@ def page_data_explorer(db_dir: str) -> None:
         common = solar_df.index.intersection(wind_df.index)
         sol = solar_df[sol_site].reindex(common).fillna(0)
         wnd = wind_df[wind_zone].reindex(common).fillna(0)
+
         lod = None
         if load_df is not None and load_col in load_df.columns:
             lod_raw = load_df[load_col]
@@ -949,7 +950,7 @@ def page_data_explorer(db_dir: str) -> None:
                 fig.add_trace(go.Scatter(
                     x=list(range(24)),
                     y=hourly.values,
-                    name=f"{source} — {season_name}",
+                    name=f"{source} {'H' if season_name == 'Hiver' else 'E'}",
                     line=dict(color=color, dash=dash, width=1.8),
                     showlegend=True,
                     hovertemplate=f"%{{x}}h : %{{y:.1f}}%<extra>{source} {season_name}</extra>"
