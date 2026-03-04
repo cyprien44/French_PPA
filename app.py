@@ -822,6 +822,7 @@ def page_data_explorer(db_dir: str) -> None:
             orientation="h", marker_color=colors_cr,
             text=cr_sorted["capture_rate_systeme"].round(3),
             textposition="outside",
+            showlegend=False,
         ), row=1, col=1)
         fig.add_vline(x=1.0, line_dash="dash", line_color="#78909c",
                       annotation_text="CR=1 (neutre)", row=1, col=1)
@@ -831,12 +832,12 @@ def page_data_explorer(db_dir: str) -> None:
             if not sub.empty:
                 fig.add_trace(go.Scatter(
                     x=sub["cf_mean"]*100, y=sub["capture_price_eur_mwh"],
-                    mode="markers+text",
-                    text=sub["site"].str[:12],
-                    textposition="top center",
-                    textfont=dict(size=9),
-                    marker=dict(color=c, size=10, symbol="circle"),
+                    mode="markers",
+                    marker=dict(color=c, size=12, symbol="circle",
+                                line=dict(width=1, color="white")),
                     name=tech,
+                    text=sub["site"],
+                    hovertemplate="<b>%{text}</b><br>CF: %{x:.1f}%<br>Capture: %{y:.1f} €/MWh<extra></extra>",
                 ), row=1, col=2)
 
         fig.update_xaxes(title_text="Capture Rate", row=1, col=1)
