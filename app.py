@@ -567,7 +567,6 @@ def page_data_explorer(db_dir: str) -> None:
                     showlegend=False), row=1, col=2)
 
         # Heatmap premier site
-        # Heatmap premier site
         s0 = solar_df[selected_sites[0]]
         if not hasattr(s0.index, 'hour'):
             s0.index = pd.date_range(start="2024-01-01", periods=len(s0), freq="h")
