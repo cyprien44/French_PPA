@@ -559,9 +559,9 @@ def page_data_explorer(db_dir: str) -> None:
             if len(month_data) > 0:
                 week_avg = (
                     month_data.groupby([month_data.index.dayofweek, month_data.index.hour])
-                    .mean()
-                    .reset_index()
-                )
+                    .mean())
+                week_avg.index.names = ["dow", "hour"]
+                week_avg = week_avg.reset_index()
                 week_avg.columns = ["dow", "hour", "cf"]
                 week_avg = week_avg.sort_values(["dow", "hour"])
                 x_labels = [f"{'LMJVSD'[d]}{h:02d}h" for d, h in zip(week_avg["dow"], week_avg["hour"])]
