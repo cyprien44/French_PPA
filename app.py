@@ -917,29 +917,43 @@ def page_data_explorer(db_dir: str) -> None:
         common = solar_df.index.intersection(wind_df.index)
         sol = solar_df[sol_site].reindex(common).fillna(0)
         wnd = wind_df[wind_zone].reindex(common).fillna(0)
-        lod = (load_df[load_col].reindex(common).fillna(0)
-               if load_df is not None and load_col in load_df.columns else None)
+        lod = None
+        if load_df is not None and load_col in load_df.columns:
+            lod_raw = load_df[load_col]
+            if not hasattr(lod_raw.index, 'hour'):
+                lod_raw.index = pd.date_range(start="2020-01-01", periods=len(lod_raw), freq="h")
+            lod = lod_raw.reindex(common).fillna(lod_raw.mean())
 
         fig = make_subplots(rows=2, cols=2,
             subplot_titles=[
-                "Complémentarité — Semaine hiver (Janvier)",
-                "Complémentarité — Semaine été (Juillet)",
+                "Profil journalier moyen — Hiver vs Été (Solaire / Éolien / Charge)",
+                "",
                 "CF mensuel moyen — comparaison sources",
                 "Matrice de corrélation",
             ])
 
-        for month, label, r, c_ in [(1, "Hiver (Jan)", 1, 1), (7, "Été (Jul)", 1, 2)]:
-            mask = common[common.month == month][:168]
-            fig.add_trace(go.Scatter(x=list(range(len(mask))), y=sol.loc[mask].values*100,
-                name="Solaire", line=dict(color=COLORS_TECH["solar"]),
-                fill="tozeroy", showlegend=(r==1 and c_==1)), row=r, col=c_)
-            fig.add_trace(go.Scatter(x=list(range(len(mask))), y=wnd.loc[mask].values*100,
-                name="Éolien", line=dict(color=COLORS_TECH["offshore"]),
-                showlegend=(r==1 and c_==1)), row=r, col=c_)
-            if lod is not None:
-                fig.add_trace(go.Scatter(x=list(range(len(mask))), y=lod.loc[mask].values*100,
-                    name="Charge", line=dict(color=COLORS_TECH["load"], dash="dot"),
-                    showlegend=(r==1 and c_==1)), row=r, col=c_)
+        # APRÈS — profil journalier moyen par saison (solaire + éolien + charge)
+        SEASONS_COMP = [
+            ("Hiver",     [12, 1, 2, 3], "solid"),
+            ("Été",       [6, 7, 8],     "dot"),
+        ]
+        for season_name, months, dash in SEASONS_COMP:
+            mask_s = common[common.month.isin(months)]
+            if len(mask_s) == 0:
+                continue
+            for source, series, color, r, c_ in [
+                ("Solaire", sol, COLORS_TECH["solar"],    1, 1),
+                ("Éolien",  wnd, COLORS_TECH["offshore"], 1, 1),
+            ] + ([("Charge", lod, COLORS_TECH["load"], 1, 1)] if lod is not None else []):
+                hourly = series.reindex(mask_s).groupby(series.reindex(mask_s).index.hour).mean() * 100
+                fig.add_trace(go.Scatter(
+                    x=list(range(24)),
+                    y=hourly.values,
+                    name=f"{source} — {season_name}",
+                    line=dict(color=color, dash=dash, width=1.8),
+                    showlegend=True,
+                    hovertemplate=f"%{{x}}h : %{{y:.1f}}%<extra>{source} {season_name}</extra>"
+                ), row=1, col=1)
 
         # CF mensuel
         for name, s, c_ in [("Solaire", sol, COLORS_TECH["solar"]),
