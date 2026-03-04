@@ -550,21 +550,31 @@ def page_data_explorer(db_dir: str) -> None:
             c = colors_sites[i % len(colors_sites)]
             s = solar_df[site]
 
-            # Semaine type — fix index datetime si nécessaire
+            # Semaine type — moyenne par (jour_semaine, heure) sur tout le mois
             if not hasattr(s.index, 'month') or not hasattr(s.index, 'hour'):
                 s.index = pd.date_range(start="2024-01-01", periods=len(s), freq="h")
-            week = s[s.index.month == view_month].iloc[:168]
-            if len(week) > 0:
-                fig.add_trace(go.Scatter(x=list(range(len(week))), y=week.values*100,
-                    name=site, line=dict(color=c, width=1.5),
-                    fill="tozeroy" if i == 0 else None), row=1, col=1)
 
-            # CF mensuel
-            monthly = s.groupby(s.index.month).mean() * 100
-            if len(monthly) > 0:
-                fig.add_trace(go.Scatter(x=MONTH_NAMES, y=monthly.values,
-                    name=site, line=dict(color=c), mode="lines+markers",
-                    showlegend=False), row=1, col=2)
+            month_data = s[s.index.month == view_month].copy()
+
+            if len(month_data) > 0:
+                week_avg = (
+                    month_data.groupby([month_data.index.dayofweek, month_data.index.hour])
+                    .mean()
+                    .reset_index()
+                )
+                week_avg.columns = ["dow", "hour", "cf"]
+                week_avg = week_avg.sort_values(["dow", "hour"])
+                x_labels = [f"{'LMJVSD'[d]}{h:02d}h" for d, h in zip(week_avg["dow"], week_avg["hour"])]
+
+                fig.add_trace(go.Scatter(
+                    x=list(range(len(week_avg))),
+                    y=week_avg["cf"].values * 100,
+                    name=site,
+                    line=dict(color=c, width=1.5),
+                    fill="tozeroy" if i == 0 else None,
+                    hovertext=x_labels,
+                    hovertemplate="%{hovertext}: %{y:.1f}%<extra></extra>"
+                ), row=1, col=1)
 
         # Heatmap premier site
         s0 = solar_df[selected_sites[0]]
