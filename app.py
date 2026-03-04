@@ -564,7 +564,8 @@ def page_data_explorer(db_dir: str) -> None:
                 week_avg = week_avg.reset_index()
                 week_avg.columns = ["dow", "hour", "cf"]
                 week_avg = week_avg.sort_values(["dow", "hour"])
-                x_labels = [f"{'LMJVSD'[d]}{h:02d}h" for d, h in zip(week_avg["dow"], week_avg["hour"])]
+                DAYS = ["Lu", "Ma", "Me", "Je", "Ve", "Sa", "Di"]
+                x_labels = [f"{DAYS[d]} {h:02d}h" for d, h in zip(week_avg["dow"], week_avg["hour"])]
 
                 fig.add_trace(go.Scatter(
                     x=list(range(len(week_avg))),
@@ -637,14 +638,28 @@ def page_data_explorer(db_dir: str) -> None:
         for i, zone in enumerate(selected_zones[:8]):
             c = colors_z[i % len(colors_z)]
             s = wind_df[zone]
+
             monthly = s.groupby(s.index.month).mean() * 100
             fig.add_trace(go.Scatter(x=MONTH_NAMES, y=monthly.values,
                 name=zone, line=dict(color=c), mode="lines+markers"), row=1, col=1)
+            
             fig.add_trace(go.Box(y=s.values*100, name=zone, marker_color=c,
                 showlegend=False), row=1, col=2)
-            week = s[s.index.month == 1].iloc[:168]
-            fig.add_trace(go.Scatter(x=list(range(168)), y=week.values*100,
-                name=zone, line=dict(color=c), showlegend=False), row=2, col=1)
+            
+            DAYS = ["Lu", "Ma", "Me", "Je", "Ve", "Sa", "Di"]
+            jan_data = s[s.index.month == 1]
+            if len(jan_data) > 0:
+                week_avg_w = jan_data.groupby([jan_data.index.dayofweek, jan_data.index.hour]).mean()
+                week_avg_w.index.names = ["dow", "hour"]
+                week_avg_w = week_avg_w.reset_index().sort_values(["dow", "hour"])
+                fig.add_trace(go.Scatter(
+                    x=list(range(len(week_avg_w))),
+                    y=week_avg_w.iloc[:, 2].values * 100,
+                    name=zone, line=dict(color=c), showlegend=False,
+                    hovertext=[f"{DAYS[d]} {h:02d}h" for d, h in zip(week_avg_w["dow"], week_avg_w["hour"])],
+                    hovertemplate="%{hovertext}: %{y:.1f}%<extra></extra>"
+                ), row=2, col=1)
+            
             sorted_cf = np.sort(s.values)[::-1] * 100
             fig.add_trace(go.Scatter(x=np.arange(1, len(sorted_cf)+1), y=sorted_cf,
                 name=zone, line=dict(color=c), showlegend=False), row=2, col=2)
