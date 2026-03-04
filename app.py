@@ -290,7 +290,7 @@ def load_scenario_defaults(xlsx_path: str) -> pd.DataFrame | None:
     if not p.exists():
         return None
     try:
-        df = pd.read_excel(p, header=4)
+        df = pd.read_excel(p, header=3)
         df.columns = [str(c).strip() for c in df.columns]
         return df
     except Exception:
