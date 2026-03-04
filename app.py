@@ -980,8 +980,11 @@ def page_data_explorer(db_dir: str) -> None:
             texttemplate="%{text}",
         ), row=2, col=2)
 
-        fig.update_layout(template=PLOTLY_TEMPLATE, height=600,
-                          legend=dict(orientation="h", y=1.04))
+        # APRÈS
+        fig.update_layout(template=PLOTLY_TEMPLATE, height=650,
+                          legend=dict(orientation="h", y=-0.08, x=0,
+                                      font=dict(size=11)),
+                          margin=dict(t=60, b=80))
         st.plotly_chart(fig, use_container_width=True)
 
         # Heures négatives
