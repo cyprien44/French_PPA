@@ -1512,34 +1512,46 @@ def page_resultats() -> None:
             return
 
         fig = make_subplots(rows=1, cols=2,
-            subplot_titles=["Score composite par site", "Capture Rate vs Corrélation charge"])
+            subplot_titles=["Score composite par site",
+                            "Capture Rate vs LCOE (€/MWh)"])
 
         sorted_s = screened.sort_values("score_composite")
         colors_t = [COLORS_TECH.get(t, "#90a4ae") for t in sorted_s["technology"]]
-        fig.add_trace(go.Bar(y=sorted_s["site"], x=sorted_s["score_composite"],
+        fig.add_trace(go.Bar(
+            y=sorted_s["site"], x=sorted_s["score_composite"],
             orientation="h", marker_color=colors_t,
-            text=sorted_s["score_composite"].round(3), textposition="outside"), row=1, col=1)
+            text=sorted_s["score_composite"].round(3),
+            textposition="outside",
+            showlegend=False,
+        ), row=1, col=1)
 
         for tech, c in COLORS_TECH.items():
             sub = screened[screened["technology"] == tech]
-            if not sub.empty:
-                fig.add_trace(go.Scatter(
-                    x=sub["capture_rate_systeme"],
-                    y=sub["correlation_load"].fillna(0),
-                    mode="markers+text",
-                    text=sub["site"].str[:12],
-                    textposition="top center",
-                    textfont=dict(size=9),
-                    marker=dict(color=c, size=12),
-                    name=tech,
-                ), row=1, col=2)
+            if sub.empty:
+                continue
+            # Axe Y : LCOE ou ppa_indicatif si disponible
+            y_col = "ppa_indicatif_eur_mwh" if "ppa_indicatif_eur_mwh" in sub.columns else "LCOE"
+            y_label = "Prix PPA indicatif (€/MWh)" if y_col == "ppa_indicatif_eur_mwh" else "LCOE (€/MWh)"
+            fig.add_trace(go.Scatter(
+                x=sub["capture_rate_systeme"],
+                y=sub[y_col].fillna(0),
+                mode="markers+text",
+                text=sub["site"].str.replace("_off","").str.replace("_on","").str.replace("_sol",""),
+                textposition="top center",
+                textfont=dict(size=8),
+                marker=dict(color=c, size=12, line=dict(width=1, color="white")),
+                name=tech,
+            ), row=1, col=2)
 
         fig.add_vline(x=1.0, line_dash="dash", line_color="#78909c", row=1, col=2)
         fig.update_xaxes(title_text="Score composite", row=1, col=1)
         fig.update_xaxes(title_text="Capture Rate", row=1, col=2)
-        fig.update_yaxes(title_text="Corrélation charge", row=1, col=2)
-        fig.update_layout(template=PLOTLY_TEMPLATE, height=430,
-                          legend=dict(orientation="h", y=1.05))
+        fig.update_yaxes(title_text=y_label, row=1, col=2)
+        fig.update_layout(
+            template=PLOTLY_TEMPLATE, height=430,
+            legend=dict(orientation="h", y=-0.18, x=0),
+            margin=dict(t=50, b=80),
+        )
         st.plotly_chart(fig, use_container_width=True)
 
         st.dataframe(screened, use_container_width=True)
