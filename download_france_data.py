@@ -112,7 +112,8 @@ def _read_column(db: Path, table: str, idx_col: str, col: str) -> pd.Series | No
         return None
     conn = sqlite3.connect(str(db))
     try:
-        df = pd.read_sql(f"SELECT {idx_col}, {col} FROM {table}", conn, index_col=idx_col)
+        df = pd.read_sql(f"SELECT {idx_col}, {col} FROM {table}", conn,
+                         index_col=idx_col, parse_dates=[idx_col])
         conn.close()
         return df[col]
     except Exception:
