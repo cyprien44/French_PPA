@@ -741,57 +741,107 @@ def page_data_explorer(db_dir: str) -> None:
     # ── Tab 5 : EPEX Spot ────────────────────────────────────────────────────
     with tabs[4]:
         st.markdown("#### Prix EPEX Day-Ahead France — profil horaire")
-        year_sel = st.selectbox("Année", list(range(2018, 2026))[::-1], index=1)
-        epex = load_epex_db(db_dir, year_sel)
+        st.markdown(
+            '<div class="info-card">'
+            '⚡ <b>Année météo de référence : 2020</b> (source ERA5 / synthétique calibré).<br>'
+            'Ce profil sert à calculer les <b>capture rates</b> et la <b>complémentarité</b> — '
+            'il reflète la <i>forme</i> des prix, pas leur niveau futur.<br>'
+            '💡 Le prix de référence du contrat (Cal+1 EEX forward ou consensus broker) '
+            'est paramétrable dans <b>⚙️ Scénario & Calcul</b>.'
+            '</div>',
+            unsafe_allow_html=True
+        )
 
+        epex = load_epex_db(db_dir, 2020)
         if epex is None:
-            st.warning(f"epex_profiles.db absent ou année {year_sel} non calculée. "
-                       "Exécuter `download_france_data.py`")
-            return
+            st.warning("epex_profiles.db absent. Exécuter `download_france_data.py`")
+            st.stop()
 
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3, c4, c5 = st.columns(5)
         neg_h = int((epex < 0).sum())
-        with c1: st.metric("Prix moyen", f"{epex.mean():.1f} €/MWh")
+        with c1: st.metric("Prix moyen 2020", f"{epex.mean():.1f} €/MWh")
         with c2: st.metric("Prix max", f"{epex.max():.0f} €/MWh")
         with c3: st.metric("Prix min", f"{epex.min():.0f} €/MWh")
         with c4: st.metric("Heures négatives", f"{neg_h} h", f"{neg_h/len(epex)*100:.1f}%")
+        with c5: st.metric("Volatilité (σ)", f"{epex.std():.1f} €/MWh")
 
         fig = make_subplots(rows=2, cols=2,
             subplot_titles=[
-                f"Prix spot EPEX {year_sel} (€/MWh)",
-                "Prix mensuel moyen (€/MWh)",
-                "Profil journalier moyen par saison",
-                "Distribution des prix (histogramme)",
+                "Prix spot EPEX 2020 — profil annuel (€/MWh)",
+                "Prix mensuel moyen — saisonnalité (€/MWh)",
+                "Profil journalier moyen par saison (€/MWh)",
+                "Distribution des prix — queue de distribution",
             ])
 
         fig.add_trace(go.Scatter(x=epex.index, y=epex.values,
-            line=dict(color="#42a5f5", width=0.6), name="EPEX"), row=1, col=1)
+            line=dict(color="#42a5f5", width=0.5), name="EPEX 2020",
+            hovertemplate="%{x|%d %b %Hh} : %{y:.1f} €/MWh<extra></extra>"),
+            row=1, col=1)
 
         monthly = epex.groupby(epex.index.month).mean()
         colors_m = ["#1565c0" if m in (12,1,2,3) else
                     ("#43a047" if m in (6,7,8) else "#78909c")
                     for m in range(1,13)]
         fig.add_trace(go.Bar(x=MONTH_NAMES, y=monthly.values,
-            marker_color=colors_m, showlegend=False), row=1, col=2)
+            marker_color=colors_m, showlegend=False,
+            hovertemplate="%{x} : %{y:.1f} €/MWh<extra></extra>"), row=1, col=2)
 
-        for season, months, color in [("Hiver", [12,1,2,3], "#1565c0"),
-                                       ("Printemps", [4,5], "#8d6e63"),
-                                       ("Été", [6,7,8], "#43a047"),
-                                       ("Automne", [9,10,11], "#e65100")]:
+        for season, months, color in [
+            ("Hiver",     [12,1,2,3], "#1565c0"),
+            ("Printemps", [4,5],      "#8d6e63"),
+            ("Été",       [6,7,8],    "#43a047"),
+            ("Automne",   [9,10,11],  "#e65100"),
+        ]:
             mask = epex.index.month.isin(months)
             hourly = epex[mask].groupby(epex[mask].index.hour).mean()
-            fig.add_trace(go.Scatter(x=list(range(24)), y=hourly.values,
-                name=season, line=dict(color=color)), row=2, col=1)
+            fig.add_trace(go.Scatter(
+                x=list(range(24)), y=hourly.values,
+                name=season, line=dict(color=color, width=2),
+                hovertemplate=f"%{{x}}h : %{{y:.1f}} €/MWh<extra>{season}</extra>",
+            ), row=2, col=1)
 
         fig.add_trace(go.Histogram(x=epex.values, nbinsx=80,
-            marker_color="#42a5f5", showlegend=False), row=2, col=2)
+            marker_color="#42a5f5", opacity=0.8, showlegend=False,
+            hovertemplate="%{x:.0f} €/MWh : %{y} heures<extra></extra>"), row=2, col=2)
         if neg_h > 0:
             fig.add_vline(x=0, line_dash="dash", line_color="#ef5350",
-                          annotation_text="0 €/MWh", row=2, col=2)
+                          annotation_text=f"0 € ({neg_h}h)", row=2, col=2)
 
         fig.update_layout(template=PLOTLY_TEMPLATE, height=580,
-                          legend=dict(orientation="h", y=1.02))
+                          legend=dict(orientation="h", y=1.02),
+                          margin=dict(t=50, b=20))
+        fig.update_xaxes(title_text="Heure", row=2, col=1)
+        fig.update_xaxes(title_text="€/MWh", row=2, col=2)
         st.plotly_chart(fig, use_container_width=True)
+
+        # Encart prix forward de marché
+        st.markdown("---")
+        st.markdown("**📊 Prix forward de référence — consensus marché**")
+        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+        with col_f1:
+            st.markdown(
+                '<div class="info-card" style="border-left-color:#f5a623">'
+                '<b>Cal+1 EEX</b><br>'
+                '<span style="font-size:1.3rem;font-family:monospace">~65 €/MWh</span><br>'
+                '<small>Base France 2025</small></div>', unsafe_allow_html=True)
+        with col_f2:
+            st.markdown(
+                '<div class="info-card" style="border-left-color:#81c784">'
+                '<b>Consensus 2030</b><br>'
+                '<span style="font-size:1.3rem;font-family:monospace">~70-80 €/MWh</span><br>'
+                '<small>Aurora / Pöyry median</small></div>', unsafe_allow_html=True)
+        with col_f3:
+            st.markdown(
+                '<div class="info-card" style="border-left-color:#4fc3f7">'
+                '<b>Drift implicite</b><br>'
+                '<span style="font-size:1.3rem;font-family:monospace">+1.5-2% /an</span><br>'
+                '<small>Réel, hors inflation</small></div>', unsafe_allow_html=True)
+        with col_f4:
+            st.markdown(
+                '<div class="info-card" style="border-left-color:#ce93d8">'
+                '<b>Hypothèse modèle</b><br>'
+                '<span style="font-size:1.3rem;font-family:monospace">paramétrable</span><br>'
+                '<small>⚙️ Scénario & Calcul</small></div>', unsafe_allow_html=True)
 
     # ── Tab 6 : Capture Rates ────────────────────────────────────────────────
     with tabs[5]:
