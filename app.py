@@ -550,17 +550,21 @@ def page_data_explorer(db_dir: str) -> None:
             c = colors_sites[i % len(colors_sites)]
             s = solar_df[site]
 
-            # Semaine type
+            # Semaine type — fix index datetime si nécessaire
+            if not hasattr(s.index, 'month') or not hasattr(s.index, 'hour'):
+                s.index = pd.date_range(start="2024-01-01", periods=len(s), freq="h")
             week = s[s.index.month == view_month].iloc[:168]
-            fig.add_trace(go.Scatter(x=list(range(len(week))), y=week.values*100,
-                name=site, line=dict(color=c, width=1.5),
-                fill="tozeroy" if i == 0 else None), row=1, col=1)
+            if len(week) > 0:
+                fig.add_trace(go.Scatter(x=list(range(len(week))), y=week.values*100,
+                    name=site, line=dict(color=c, width=1.5),
+                    fill="tozeroy" if i == 0 else None), row=1, col=1)
 
             # CF mensuel
             monthly = s.groupby(s.index.month).mean() * 100
-            fig.add_trace(go.Scatter(x=MONTH_NAMES, y=monthly.values,
-                name=site, line=dict(color=c), mode="lines+markers",
-                showlegend=False), row=1, col=2)
+            if len(monthly) > 0:
+                fig.add_trace(go.Scatter(x=MONTH_NAMES, y=monthly.values,
+                    name=site, line=dict(color=c), mode="lines+markers",
+                    showlegend=False), row=1, col=2)
 
         # Heatmap premier site
         s0 = solar_df[selected_sites[0]]
