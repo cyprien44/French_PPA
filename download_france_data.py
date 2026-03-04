@@ -685,14 +685,23 @@ def compute_capture_rates(epex_year: int = METEO_YEAR,
             load_df = pd.read_sql("SELECT * FROM load_patterns", conn_l,
                                    index_col="datetime", parse_dates=["datetime"])
             conn_l.close()
-            # ← AJOUTER CES LIGNES : réindexer le profil de charge sur l'année EPEX
+     
             # La forme horaire (H24 × 365) est identique quelle que soit l'année
             if load_df is not None and not load_df.empty:
                 dr_epex = pd.date_range(f"{epex_year}-01-01",
                                          f"{epex_year}-12-31 23:00", freq="h")
-                load_arr = load_df.values[:len(dr_epex)]  # tronquer si besoin
-                load_df  = pd.DataFrame(load_arr, index=dr_epex,
-                                         columns=load_df.columns)
+                # Utiliser uniquement les valeurs (ignorer l'index 2030)
+                # et les mapper sur l'index EPEX (2020)
+                vals = load_df.values
+                n_epex = len(dr_epex)
+                n_load = len(vals)
+                if n_load >= n_epex:
+                    arr = vals[:n_epex]
+                else:
+                    # Répéter si trop court (rare)
+                    arr = np.resize(vals, (n_epex, vals.shape[1]))
+                load_df = pd.DataFrame(arr, index=dr_epex,
+                                        columns=load_df.columns)
         except Exception:
             conn_l.close()
 
@@ -723,6 +732,10 @@ def compute_capture_rates(epex_year: int = METEO_YEAR,
             corr_load = None
             if load_df is not None and "siderurgie" in load_df.columns:
                 common = cf.index.intersection(load_df.index)
+                print(f"    DEBUG {col}: load_df={load_df is not None}, "
+                      f"common={len(common)}, "
+                      f"cf.index[0]={cf.index[0]}, "
+                      f"load.index[0]={load_df.index[0]}")
                 if len(common) >= 8000:
                     q_l = cf.reindex(common).fillna(0).values
                     l_l = load_df["siderurgie"].reindex(common).fillna(0).values
