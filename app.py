@@ -920,10 +920,24 @@ def page_data_explorer(db_dir: str) -> None:
 
         lod = None
         if load_df is not None and load_col in load_df.columns:
-            lod_raw = load_df[load_col]
-            if not hasattr(lod_raw.index, 'hour'):
-                lod_raw.index = pd.date_range(start="2020-01-01", periods=len(lod_raw), freq="h")
-            lod = lod_raw.reindex(common).fillna(lod_raw.mean())
+            lod_raw = load_df[load_col].copy()
+            # Normaliser l'index à fréquence horaire sans timezone
+            lod_raw.index = pd.to_datetime(lod_raw.index).floor("h")
+            lod_raw = lod_raw[~lod_raw.index.duplicated(keep="first")]
+            # Reconstruire sur 2020 si index ne coïncide pas avec common
+            common_yr = common.year.unique()
+            lod_yr = lod_raw.index.year.unique()
+            if not any(y in lod_yr for y in common_yr):
+                lod_raw.index = pd.date_range(
+                    start=common[0], periods=len(lod_raw), freq="h"
+                )
+            lod = lod_raw.reindex(common)
+            if lod.isna().all():
+                # Fallback : répéter le profil annuel sur common
+                lod = pd.Series(
+                    [lod_raw.iloc[i % len(lod_raw)] for i in range(len(common))],
+                    index=common
+                )
 
         fig = make_subplots(rows=2, cols=2,
             subplot_titles=[
