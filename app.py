@@ -806,46 +806,64 @@ def page_data_explorer(db_dir: str) -> None:
         cr_df = load_capture_rates(db_dir)
         if cr_df is None:
             st.warning("capture_rates.db non trouvé. Exécuter `download_france_data.py`")
-            return
+            st.stop()
 
-        fig = make_subplots(rows=1, cols=2,
-            subplot_titles=[
-                "Capture rate par site (tri décroissant)",
-                "Capture price vs EPEX moyen",
-            ])
-
+        # Bar chart seul — pleine largeur
         cr_sorted = cr_df.sort_values("capture_rate_systeme", ascending=True)
         colors_cr = [COLORS_TECH.get(t, "#90a4ae") for t in cr_sorted["technology"]]
 
-        fig.add_trace(go.Bar(
+        fig_bar = go.Figure()
+        fig_bar.add_trace(go.Bar(
             y=cr_sorted["site"], x=cr_sorted["capture_rate_systeme"],
             orientation="h", marker_color=colors_cr,
             text=cr_sorted["capture_rate_systeme"].round(3),
             textposition="outside",
             showlegend=False,
-        ), row=1, col=1)
-        fig.add_vline(x=1.0, line_dash="dash", line_color="#78909c",
-                      annotation_text="CR=1 (neutre)", row=1, col=1)
+            hovertemplate="<b>%{y}</b><br>CR: %{x:.3f}<extra></extra>",
+        ))
+        fig_bar.add_vline(x=1.0, line_dash="dash", line_color="#78909c",
+                          annotation_text="CR=1 (neutre)")
+        fig_bar.update_layout(
+            template=PLOTLY_TEMPLATE, height=520,
+            title=dict(text="Capture rate par site", x=0.5, xanchor="center",
+                       font=dict(size=14)),
+            margin=dict(t=60, b=20),
+            xaxis_title="Capture Rate",
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
 
-        for tech, c in COLORS_TECH.items():
-            sub = cr_df[cr_df["technology"] == tech]
-            if not sub.empty:
-                fig.add_trace(go.Scatter(
-                    x=sub["cf_mean"]*100, y=sub["capture_price_eur_mwh"],
-                    mode="markers",
-                    marker=dict(color=c, size=12, symbol="circle",
-                                line=dict(width=1, color="white")),
-                    name=tech,
-                    text=sub["site"],
-                    hovertemplate="<b>%{text}</b><br>CF: %{x:.1f}%<br>Capture: %{y:.1f} €/MWh<extra></extra>",
-                ), row=1, col=2)
-
-        fig.update_xaxes(title_text="Capture Rate", row=1, col=1)
-        fig.update_xaxes(title_text="CF moyen (%)", row=1, col=2)
-        fig.update_yaxes(title_text="Capture Price (€/MWh)", row=1, col=2)
-        fig.update_layout(template=PLOTLY_TEMPLATE, height=520,
-                          legend=dict(orientation="h", y=1.08))
-        st.plotly_chart(fig, use_container_width=True)
+        # Scatter séparé — pleine largeur
+        TEXT_POSITIONS = [
+            "top center", "bottom center", "top right", "bottom right",
+            "top left", "bottom left", "middle right", "middle left"
+        ]
+        fig_scatter = go.Figure()
+        for i, (tech, c) in enumerate(COLORS_TECH.items()):
+            sub = cr_df[cr_df["technology"] == tech].reset_index(drop=True)
+            if sub.empty:
+                continue
+            # Alterner les positions pour éviter les chevauchements
+            positions = [TEXT_POSITIONS[j % len(TEXT_POSITIONS)] for j in range(len(sub))]
+            fig_scatter.add_trace(go.Scatter(
+                x=sub["cf_mean"]*100, y=sub["capture_price_eur_mwh"],
+                mode="markers+text",
+                marker=dict(color=c, size=12, line=dict(width=1, color="white")),
+                name=tech,
+                text=sub["site"].str.replace("_", " "),
+                textposition=positions,
+                textfont=dict(size=9),
+                hovertemplate="<b>%{text}</b><br>CF: %{x:.1f}%<br>Capture: %{y:.1f} €/MWh<extra></extra>",
+            ))
+        fig_scatter.update_layout(
+            template=PLOTLY_TEMPLATE, height=420,
+            title=dict(text="Capture price vs CF moyen", x=0.5, xanchor="center",
+                       font=dict(size=14)),
+            xaxis_title="CF moyen (%)",
+            yaxis_title="Capture Price (€/MWh)",
+            legend=dict(orientation="h", y=-0.15),
+            margin=dict(t=60, b=80),
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
 
         st.dataframe(cr_df.sort_values("capture_rate_systeme", ascending=False)
                      .reset_index(drop=True), use_container_width=True)
